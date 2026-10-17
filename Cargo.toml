@@ -12,9 +12,11 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 # the platform's own crates
+chisel-assets = { path = "crates/chisel-assets", version = "0.1.0" }
 chisel-audit = { path = "crates/chisel-audit", version = "0.1.0" }
 chisel-kernel = { path = "crates/chisel-kernel", version = "0.1.0" }
 # dogfooded kit estate
+cas-kit = "0.2"
 tamper-audit = "0.2"
 config-kit = "0.1"
 serde = { version = "1", features = ["derive"] }

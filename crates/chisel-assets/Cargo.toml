@@ -1,0 +1,15 @@
+[package]
+name = "chisel-assets"
+description = "Content-addressed document store for Chisel: BLAKE3-addressed, verify-on-read, deduplication by construction — over cas-kit."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+cas-kit.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
