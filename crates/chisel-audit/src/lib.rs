@@ -45,9 +45,6 @@ pub enum Error {
     /// The underlying chain rejected the append or a query.
     #[error("audit chain error: {0}")]
     Chain(#[from] tamper_audit::AuditError),
-    /// A detail payload could not be serialized; the event was NOT recorded.
-    #[error("event detail is not serializable: {0}")]
-    Detail(#[from] serde_json::Error),
 }
 
 /// Convenient alias for fallible audit operations.
@@ -168,11 +165,14 @@ impl DocumentTrail {
     ///
     /// # Errors
     ///
-    /// Propagates the chain's append error; a detail payload that cannot
-    /// serialize is a [`Error::Detail`] and nothing is recorded (audit entries
-    /// are never half-written).
+    /// Propagates the chain's append error. The payload is built with the
+    /// `json!` macro, so construction is infallible and an entry is never
+    /// half-written.
     pub async fn record(&self, event: AuditEvent) -> Result<()> {
-        let payload = serde_json::to_value(&event)?;
+        let payload = serde_json::json!({
+            "document": event.document.as_str(),
+            "detail": event.detail,
+        });
         self.inner
             .append(
                 &event.actor,
@@ -278,6 +278,66 @@ mod tests {
         let alice = trail.by_actor("alice").await?;
         assert_eq!(alice.len(), 2);
         assert!(alice.iter().all(|e| e.actor == "alice"));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod surface_tests {
+    #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+    use super::*;
+
+    #[tokio::test]
+    async fn signed_events_land_in_the_trail() -> Result<()> {
+        let trail = DocumentTrail::default(); // Default == in-memory
+        let doc = DocumentRef::new("treaty.pdf");
+
+        trail
+            .record(AuditEvent::signed("carla", &doc, "sig1"))
+            .await?;
+        let entries = trail.for_document(&doc).await?;
+        assert_eq!(entries.len(), 1);
+        let Some(first) = entries.first() else {
+            panic!("the recorded entry must be queryable");
+        };
+        assert_eq!(first.action, "sign.apply");
+        Ok(())
+    }
+
+    #[test]
+    fn document_ref_displays_as_its_name() {
+        let doc = DocumentRef::new("shown.pdf");
+        assert_eq!(doc.to_string(), "shown.pdf");
+        assert_eq!(doc.as_str(), "shown.pdf");
+    }
+
+    #[tokio::test]
+    async fn every_variant_produces_its_closed_vocabulary_action() -> Result<()> {
+        let trail = DocumentTrail::in_memory();
+        let doc = DocumentRef::new("all.pdf");
+
+        for event in [
+            AuditEvent::opened("a", &doc),
+            AuditEvent::edited("a", &doc, "p1"),
+            AuditEvent::redacted("a", &doc, "p2"),
+            AuditEvent::signed("a", &doc, "s"),
+            AuditEvent::exported("a", &doc, "pdf"),
+        ] {
+            trail.record(event).await?;
+        }
+        let entries = trail.for_document(&doc).await?;
+        let actions: Vec<&str> = entries.iter().map(|e| e.action.as_str()).collect();
+        assert_eq!(
+            actions,
+            [
+                "document.open",
+                "document.edit",
+                "redact.apply",
+                "sign.apply",
+                "document.export"
+            ]
+        );
+        assert!(trail.verify().await?.is_valid());
         Ok(())
     }
 }

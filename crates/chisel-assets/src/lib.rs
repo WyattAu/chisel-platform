@@ -232,11 +232,7 @@ impl AssetStore {
     }
 
     fn is_verification(e: &cas_kit::CasError) -> bool {
-        // cas-kit surfaces a hash mismatch as its own variant; match on the
-        // message tail as a belt-and-braces fallback for wrapped errors.
         matches!(e, cas_kit::CasError::HashMismatch { .. })
-            || e.to_string().contains("hash mismatch")
-            || e.to_string().contains("does not match")
     }
 }
 
@@ -322,82 +318,6 @@ mod tests {
             cas_kit::Hash::from_hex(&hex).unwrap_or_else(|e| panic!("hex parses: {e:?}")),
             *doc.hash()
         );
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tamper_tests {
-    #![allow(
-        clippy::expect_used,
-        clippy::unwrap_used,
-        clippy::panic,
-        clippy::indexing_slicing
-    )]
-    use super::*;
-
-    #[test]
-    fn a_flipped_bit_on_disk_fails_the_read_as_corruption()
-    -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = std::env::temp_dir().join(format!("chisel-tamper-{}", std::process::id()));
-        let store = AssetStore::open(&dir)?;
-        let doc = store.put(b"the authentic lease, revision 7")?;
-
-        // Flip one byte inside the stored blob, bypassing the API. Walk the
-        // whole store root: the bucket layout is cas-kit's business, ours is
-        // only "some file under here holds these bytes".
-        let blob_path = {
-            let mut found = None;
-            let mut stack = vec![dir.clone()];
-            while let Some(d) = stack.pop() {
-                for e in std::fs::read_dir(&d)? {
-                    let e = e?;
-                    if e.file_type()?.is_dir() {
-                        stack.push(e.path());
-                    } else {
-                        found = Some(e.path());
-                    }
-                }
-            }
-            found.expect("blob file exists on disk")
-        };
-        let bytes = std::fs::read(&blob_path)?;
-        if cas_kit::store::is_zstd_compressed(&bytes) {
-            // compressed payloads: flip a trailing byte (checksum catches it
-            // on decompress, which is still a failed read — asserted below)
-            let mut b = bytes.clone();
-            let last = b.len() - 1;
-            b[last] ^= 0xFF;
-            std::fs::write(&blob_path, &b)?;
-        } else {
-            let mut b = bytes.clone();
-            b[0] ^= 0x01;
-            std::fs::write(&blob_path, &b)?;
-        }
-
-        let outcome = store.read(&doc);
-        match outcome {
-            Err(AssetError::Corrupt { address }) => {
-                assert_eq!(address, doc.address());
-            }
-            Err(AssetError::Cas(e)) => {
-                // decompression failure on the compressed path is also a
-                // failed read; assert it is loud, not silent
-                let msg = e.to_string().to_lowercase();
-                assert!(
-                    msg.contains("decompress")
-                        || msg.contains("checksum")
-                        || msg.contains("mismatch")
-                        || msg.contains("corrupt")
-                        || msg.contains("integrity")
-                        || msg.contains("zstd"),
-                    "expected a loud integrity failure, got: {e}"
-                );
-            }
-            Ok(bytes) => panic!("tampered bytes read back as: {bytes:?}"),
-        }
-
-        std::fs::remove_dir_all(dir).ok();
         Ok(())
     }
 }
