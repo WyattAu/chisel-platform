@@ -1,0 +1,41 @@
+# Chisel platform gate — the WyattAu engineering-standards matrix.
+#
+# Unlike the fork (chisel-doc), everything here is NEW code, so the estate
+# doctrine applies from birth: BLOCKING, not advisory. There is no
+# continue-on-error anywhere in this file, and per the reusable-workflow rules
+# there cannot be — advisory is a branch-protection property (see
+# chisel-doc/.github/BRANCH-PROTECTION.md for the full story).
+
+name: estate-gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace-gate:
+    uses: WyattAu/engineering-standards/.github/workflows/rust-kit.yml@main
+    with:
+      tier: a
+      all-features: false
+
+  # the two crates are the platform's whole surface today; scope stays explicit
+  # so adding a crate means adding its gate line, deliberately
+  gate-audit:
+    uses: WyattAu/engineering-standards/.github/workflows/rust-kit.yml@main
+    with:
+      tier: a
+      package: chisel-audit
+      all-features: false
+
+  gate-kernel:
+    uses: WyattAu/engineering-standards/.github/workflows/rust-kit.yml@main
+    with:
+      tier: a
+      package: chisel-kernel
+      all-features: false

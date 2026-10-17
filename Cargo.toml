@@ -1,0 +1,33 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+exclude = ["vendor"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/WyattAu/chisel-platform"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# the platform's own crates
+chisel-audit = { path = "crates/chisel-audit", version = "0.1.0" }
+chisel-kernel = { path = "crates/chisel-kernel", version = "0.1.0" }
+# dogfooded kit estate
+tamper-audit = "0.2"
+config-kit = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "deny"
+
+[workspace.lints.rust]
+missing_docs = "deny"
+unsafe_code = "forbid"
