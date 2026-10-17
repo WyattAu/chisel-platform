@@ -33,6 +33,13 @@ jobs:
       package: chisel-audit
       all-features: false
 
+  gate-assets:
+    uses: WyattAu/engineering-standards/.github/workflows/rust-kit.yml@main
+    with:
+      tier: a
+      package: chisel-assets
+      all-features: false
+
   gate-kernel:
     uses: WyattAu/engineering-standards/.github/workflows/rust-kit.yml@main
     with:
