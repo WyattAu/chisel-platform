@@ -277,6 +277,18 @@ impl SessionService {
     /// Same as [`validate`](Self::validate).
     pub fn refresh(&self, refresh_token: &str) -> Result<SessionTokens> {
         let claims = self.validate(refresh_token)?;
+        self.refresh_from_claims(&claims)
+    }
+
+    /// Issues a fresh pair from already-validated claims. Split from
+    /// [`refresh`](Self::refresh) so the no-role branch is reachable in
+    /// tests with a hand-built claims value.
+    ///
+    /// # Errors
+    ///
+    /// When the claims carry no role from the current vocabulary, or the
+    /// subject/session ids are malformed.
+    pub fn refresh_from_claims(&self, claims: &ChiselClaims) -> Result<SessionTokens> {
         let role = claims.role().ok_or_else(|| {
             Error::Token("refresh token carries no role from the current vocabulary".into())
         })?;
@@ -536,6 +548,61 @@ mod tests {
             "PKCE challenge present"
         );
         assert!(start.url().contains("state="), "CSRF state present");
+        Ok(())
+    }
+
+    #[test]
+    fn sign_capability_splits_editors_from_auditors() {
+        assert!(Role::Owner.permits(Capability::Sign));
+        assert!(Role::Editor.permits(Capability::Sign));
+        assert!(!Role::Reviewer.permits(Capability::Sign));
+        assert!(!Role::Auditor.permits(Capability::Sign));
+    }
+
+    #[test]
+    fn require_returns_ok_when_permitted() -> Result<()> {
+        let svc = service();
+        let user = chisel_kernel::UserId::try_from("ed").map_err(Error::Token)?;
+        let tokens = svc.issue(&user, Role::Editor)?;
+        let claims = svc.validate(&tokens.access)?;
+        claims.require(Capability::Edit)?;
+        claims.require(Capability::Read)?;
+        Ok(())
+    }
+
+    #[test]
+    fn debug_never_prints_the_signing_secret() {
+        let dbg = format!("{svc:?}", svc = service());
+        assert!(dbg.contains("SessionService"), "{dbg}");
+        assert!(!dbg.contains(SECRET), "the secret must not appear in Debug");
+    }
+
+    #[test]
+    fn login_start_wait_times_out_loudly() -> Result<()> {
+        let provider = OidcProviderConfig {
+            issuer: "https://id.example.test".into(),
+            authorization_url: "https://id.example.test/authorize".into(),
+            token_url: "https://id.example.test/token".into(),
+            client_id: "chisel-desktop".into(),
+            scopes: vec!["openid".into()],
+        };
+        let start = start_login(
+            &provider,
+            &provider.scopes,
+            std::time::Duration::from_millis(1),
+        )?;
+        let outcome = start.wait();
+        assert!(matches!(outcome, Err(Error::Kit(_))), "{outcome:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn the_token_exchanger_trait_runs_closures() -> Result<()> {
+        let exchange = |token_url: &str, _code: &str, _verifier: &str, _client: &str| {
+            Ok(serde_json::json!({ "token_url": token_url }))
+        };
+        let v = exchange.exchange("https://token", "code", "verifier", "client")?;
+        assert_eq!(v.get("token_url"), Some(&serde_json::json!("https://token")));
         Ok(())
     }
 }
