@@ -21,7 +21,7 @@ script-gate-kit = { path = "crates/script-gate-kit", version = "0.1.0" }
 cas-kit = "0.2"
 oauth-toolkit = "0.4"
 tokenkit = "0.4"
-tamper-audit = { git = "https://github.com/WyattAu/auditlog", rev = "104d70dffee37af06487f7b7a1e9bc2517d59823" }
+tamper-audit = "0.2.1"
 config-kit = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

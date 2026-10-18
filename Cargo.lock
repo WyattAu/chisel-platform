@@ -2024,8 +2024,9 @@ dependencies = [
 
 [[package]]
 name = "tamper-audit"
-version = "0.2.0"
-source = "git+https://github.com/WyattAu/auditlog?rev=104d70dffee37af06487f7b7a1e9bc2517d59823#104d70dffee37af06487f7b7a1e9bc2517d59823"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2d0598746514e1bece1b57f7851e0093b01c5d850b95419343cdc1cd283a629"
 dependencies = [
  "async-trait",
  "chrono",
