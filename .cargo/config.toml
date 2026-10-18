@@ -1,0 +1,5 @@
+# getrandom 0.3 (via oauth-toolkit/tokenkit) requires this configuration flag
+# on wasm32-unknown-unknown: the wasm_js backend (crypto.getRandomValues).
+# Native targets are unaffected. See docs.rs/getrandom/0.3/#webassembly-support.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

@@ -236,11 +236,14 @@ version = "0.1.0"
 dependencies = [
  "chisel-kernel",
  "chrono",
+ "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "oauth-toolkit",
  "serde",
  "serde_json",
  "thiserror",
  "tokenkit",
+ "uuid",
 ]
 
 [[package]]
@@ -662,9 +665,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2020,11 +2025,11 @@ dependencies = [
 [[package]]
 name = "tamper-audit"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f87deba1485ac03e713e5e9b37e808260e0959c60c19a178139ae1ada3a0320c"
+source = "git+https://github.com/WyattAu/auditlog?rev=104d70dffee37af06487f7b7a1e9bc2517d59823#104d70dffee37af06487f7b7a1e9bc2517d59823"
 dependencies = [
  "async-trait",
  "chrono",
+ "getrandom 0.4.3",
  "serde",
  "serde_json",
  "sha2",
@@ -2366,7 +2371,17 @@ dependencies = [
  "getrandom 0.4.3",
  "js-sys",
  "serde_core",
+ "uuid-rng-internal",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "uuid-rng-internal"
+version = "1.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e1d7ccff5e453092983b2a5ec27ebdd52745f40bef229e92051a054a37c662b"
+dependencies = [
+ "getrandom 0.4.3",
 ]
 
 [[package]]

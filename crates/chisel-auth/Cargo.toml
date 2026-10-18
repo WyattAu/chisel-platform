@@ -16,6 +16,17 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
+# Feature unification for the wasm32 web build: oauth-toolkit/tokenkit pull
+# getrandom 0.3 transitively; getrandom 0.3 gates wasm32-unknown-unknown behind
+# this feature, paired with the getrandom_backend cfg in .cargo/config.toml.
+# Native targets never see it.
+[target.wasm32-unknown-unknown.dependencies]
+uuid = { version = "1", features = ["rng-getrandom"] }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+# tamper-audit's own wasm32 table pulls getrandom 0.4 (uuid's rand backend);
+# unify the feature so both majors compile on the web target.
+getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+
 [dev-dependencies]
 
 [lints]
