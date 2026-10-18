@@ -602,7 +602,10 @@ mod tests {
             Ok(serde_json::json!({ "token_url": token_url }))
         };
         let v = exchange.exchange("https://token", "code", "verifier", "client")?;
-        assert_eq!(v.get("token_url"), Some(&serde_json::json!("https://token")));
+        assert_eq!(
+            v.get("token_url"),
+            Some(&serde_json::json!("https://token"))
+        );
         Ok(())
     }
 }
