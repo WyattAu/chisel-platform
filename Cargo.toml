@@ -16,6 +16,7 @@ chisel-assets = { path = "crates/chisel-assets", version = "0.1.0" }
 chisel-auth = { path = "crates/chisel-auth", version = "0.1.0" }
 chisel-audit = { path = "crates/chisel-audit", version = "0.1.0" }
 chisel-kernel = { path = "crates/chisel-kernel", version = "0.1.0" }
+script-gate-kit = { path = "crates/script-gate-kit", version = "0.1.0" }
 # dogfooded kit estate
 cas-kit = "0.2"
 oauth-toolkit = "0.4"
