@@ -1,0 +1,22 @@
+[package]
+name = "chisel-auth"
+description = "Chisel platform authentication: JWT sessions with a closed role vocabulary, and the OIDC desktop-loopback seam over the kit estate."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chisel-kernel.workspace = true
+oauth-toolkit.workspace = true
+tokenkit.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+
+[lints]
+workspace = true

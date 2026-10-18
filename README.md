@@ -9,7 +9,7 @@ assets, and an audit story that survives the machine it ran on.
 | [`chisel-audit`](crates/chisel-audit) | `tamper-audit` (SHA-256 chain, verification, queries) | document vocabulary over the chain: open / edit / redact / sign / export |
 | [`chisel-kernel`](crates/chisel-kernel) | `config-kit` (layered typed config, redacted secrets) | `ServiceSettings` (strict) + `DesktopSettings` (lenient) + validated ids |
 | [`chisel-assets`](crates/chisel-assets) | `cas-kit` (BLAKE3, verify-on-read, GC) | **live** — content-addressed store; dedup by construction, tamper fails the read (`blobkit`/S3 is the service slice) |
-| `chisel-auth` | `oauth-toolkit`, `tokenkit`, `webauthn-kit`, `barbican`, `accessctl` | planned — OIDC/PKCE, sessions, RBAC |
+| [`chisel-auth`](crates/chisel-auth) | `tokenkit` (JWT), `oauth-toolkit` (PKCE loopback) | **live v0.1** — session service with a closed role vocabulary and capability checks; OIDC desktop-login seam (`webauthn-kit` and `accessctl`/Cedar are v0.2) |
 | `chisel-jobs` | `outbox-kit`, `idempotency-kit`, `worker-kit` | planned — render/redaction job orchestration |
 | `chisel-observe` | `telemetry-init`, `metrics-kit`, `healthkit`, `percentile-kit` | planned |
 

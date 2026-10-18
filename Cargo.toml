@@ -13,14 +13,18 @@ rust-version = "1.85"
 [workspace.dependencies]
 # the platform's own crates
 chisel-assets = { path = "crates/chisel-assets", version = "0.1.0" }
+chisel-auth = { path = "crates/chisel-auth", version = "0.1.0" }
 chisel-audit = { path = "crates/chisel-audit", version = "0.1.0" }
 chisel-kernel = { path = "crates/chisel-kernel", version = "0.1.0" }
 # dogfooded kit estate
 cas-kit = "0.2"
+oauth-toolkit = "0.4"
+tokenkit = "0.4"
 tamper-audit = "0.2"
 config-kit = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 

@@ -46,3 +46,11 @@ jobs:
       tier: a
       package: chisel-kernel
       all-features: false
+
+  # Tier A: authentication is the security-critical surface of the platform
+  gate-auth:
+    uses: WyattAu/engineering-standards/.github/workflows/rust-kit.yml@main
+    with:
+      tier: a
+      package: chisel-auth
+      all-features: false
