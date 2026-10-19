@@ -22,11 +22,11 @@ use webauthn_kit::config::WebauthnConfig;
 use webauthn_kit::credential::{
     AllowCredential, AuthenticationOptions, AuthenticationResult, AuthenticatorSelection,
     ExcludeCredential, PubKeyCredParam, RegistrationOptions, RegistrationResult, RelyingParty,
-    WebauthnCredential, WebauthnUser,
+    WebauthnUser,
 };
 use webauthn_kit::crypto::generate_challenge_bytes;
 use webauthn_kit::policy::CredentialPolicy;
-use webauthn_kit::protocol::{AuthenticationParams, verify_authentication, verify_registration};
+use webauthn_kit::protocol::AuthenticationParams;
 
 /// A stored passkey credential.
 #[derive(Debug, Clone)]
@@ -53,42 +53,6 @@ pub trait CredentialStore: Send + Sync {
     fn for_user(&self, user: &UserId) -> Vec<StoredPasskey>;
     /// Removes a credential by id.
     fn remove(&self, credential_id: &str);
-}
-
-#[derive(Default)]
-struct MemoryStore {
-    map: Mutex<HashMap<String, StoredPasskey>>,
-}
-
-impl CredentialStore for MemoryStore {
-    fn put(&self, credential: StoredPasskey) {
-        self.map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(credential.credential_id.clone(), credential);
-    }
-    fn get(&self, credential_id: &str) -> Option<StoredPasskey> {
-        self.map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(credential_id)
-            .cloned()
-    }
-    fn for_user(&self, user: &UserId) -> Vec<StoredPasskey> {
-        self.map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .values()
-            .filter(|c| &c.user == user)
-            .cloned()
-            .collect()
-    }
-    fn remove(&self, credential_id: &str) {
-        self.map
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .remove(credential_id);
-    }
 }
 
 /// The ceremony surface of `webauthn-kit`, as a trait: the crypto is the
@@ -212,7 +176,6 @@ pub struct PasskeyService {
     verifier: Arc<dyn CeremonyVerifier>,
     store: Arc<dyn CredentialStore>,
     challenges: Arc<ChallengeMap>,
-    challenge_ttl: Duration,
     timeout_ms: u64,
 }
 
@@ -252,7 +215,6 @@ impl PasskeyService {
             verifier: Arc::new(verifier),
             store,
             challenges: Arc::new(ChallengeMap::new(Duration::from_secs(300))),
-            challenge_ttl: Duration::from_secs(300),
             timeout_ms: 60_000,
         }
     }
