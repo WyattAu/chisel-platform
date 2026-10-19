@@ -1,7 +1,7 @@
 [package]
 name = "chisel-audit"
 description = "Tamper-evident document audit trail for Chisel: SHA-256-chained, queryable, extendable to a server-side continuation."
-version.workspace = true
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -12,10 +12,13 @@ tamper-audit.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# test-only: #[tokio::test] needs a runtime; the library itself is
+# runtime-agnostic (async fns run on the caller's executor), which also
+# keeps tokio out of the wasm32 graph (its multi-thread runtime does not
+# compile there).
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true
