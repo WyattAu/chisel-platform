@@ -11,6 +11,7 @@ rust-version.workspace = true
 chisel-kernel.workspace = true
 oauth-toolkit.workspace = true
 tokenkit.workspace = true
+webauthn-kit = { version = "0.4", features = ["serde"] }
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
