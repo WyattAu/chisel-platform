@@ -205,14 +205,28 @@ impl PasskeyService {
             attestation: AttestationPolicy::strict(),
             policy: CredentialPolicy::default(),
         };
+        Self::with_verifier(rp_id, rp_name, rp_origins, store, Arc::new(verifier))
+    }
+
+    /// Creates a service with an explicit ceremony verifier. Production
+    /// builds the service with [`Self::new`]; tests and alternative
+    /// backends inject their own [`CeremonyVerifier`].
+    #[must_use]
+    pub fn with_verifier(
+        rp_id: impl Into<String>,
+        rp_name: impl Into<String>,
+        rp_origins: Vec<String>,
+        store: Arc<dyn CredentialStore>,
+        verifier: Arc<dyn CeremonyVerifier>,
+    ) -> Self {
         Self {
             config: WebauthnConfig {
-                rp_id: rp_id.clone(),
+                rp_id: rp_id.into(),
                 rp_name: rp_name.into(),
                 rp_origins,
                 ..WebauthnConfig::default()
             },
-            verifier: Arc::new(verifier),
+            verifier,
             store,
             challenges: Arc::new(ChallengeMap::new(Duration::from_secs(300))),
             timeout_ms: 60_000,
@@ -380,5 +394,310 @@ impl PasskeyService {
 
     fn verifier_policy(&self) -> CredentialPolicy {
         CredentialPolicy::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
+    use super::*;
+    use webauthn_kit::attestation::{AttestationFormat, AttestationResult, TrustLevel};
+
+    /// An in-memory credential store.
+    #[derive(Default)]
+    struct MemStore(Mutex<Vec<StoredPasskey>>);
+
+    impl CredentialStore for MemStore {
+        fn put(&self, credential: StoredPasskey) {
+            let mut all = self
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            all.retain(|c| c.credential_id != credential.credential_id);
+            all.push(credential);
+        }
+        fn get(&self, credential_id: &str) -> Option<StoredPasskey> {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .iter()
+                .find(|c| c.credential_id == credential_id)
+                .cloned()
+        }
+        fn for_user(&self, user: &UserId) -> Vec<StoredPasskey> {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .iter()
+                .filter(|c| &c.user == user)
+                .cloned()
+                .collect()
+        }
+        fn remove(&self, credential_id: &str) {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .retain(|c| c.credential_id != credential_id);
+        }
+    }
+
+    /// A verifier with programmable outcomes that records the last
+    /// authentication ceremony it was handed.
+    #[derive(Default)]
+    struct Stub {
+        refuse_registration: bool,
+        refuse_authentication: bool,
+        seen: Mutex<Option<AuthenticationParams>>,
+    }
+
+    impl CeremonyVerifier for Stub {
+        fn verify_registration(
+            &self,
+            _: &[u8],
+            _: &str,
+            _: &str,
+            _: &str,
+            _: &[String],
+        ) -> std::result::Result<RegistrationResult, webauthn_kit::WebauthnError> {
+            if self.refuse_registration {
+                return Err(webauthn_kit::WebauthnError::Config(
+                    "stub refused the registration".into(),
+                ));
+            }
+            Ok(RegistrationResult {
+                credential_id: "cred-1".into(),
+                public_key_cose: vec![1, 2, 3],
+                device_name: "test device".into(),
+                attestation_format: "none".into(),
+                attestation: AttestationResult {
+                    format: AttestationFormat::None,
+                    aaguid: None,
+                    trust_level: TrustLevel::None,
+                    warnings: vec![],
+                },
+                user_verified: true,
+                backup_eligible: false,
+                backup_state: false,
+            })
+        }
+
+        fn verify_authentication(
+            &self,
+            params: &AuthenticationParams,
+        ) -> std::result::Result<AuthenticationResult, webauthn_kit::WebauthnError> {
+            *self
+                .seen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(params.clone());
+            if self.refuse_authentication {
+                return Err(webauthn_kit::WebauthnError::Config(
+                    "stub refused the authentication".into(),
+                ));
+            }
+            Ok(AuthenticationResult {
+                credential_id: params.credential_id_b64.clone(),
+                new_sign_count: 7,
+                user_verified: true,
+                backup_state: false,
+                backup_eligible: false,
+            })
+        }
+    }
+
+    fn service(store: Arc<MemStore>, stub: Stub) -> PasskeyService {
+        PasskeyService::with_verifier(
+            "chisel.example",
+            "Chisel Docs",
+            vec!["https://chisel.example".into()],
+            store,
+            Arc::new(stub),
+        )
+    }
+
+    fn alice() -> UserId {
+        UserId::try_from("alice").unwrap()
+    }
+
+    fn bob() -> UserId {
+        UserId::try_from("bob").unwrap()
+    }
+
+    fn passkey(user: &UserId, id: &str, cose: &[u8], sign_count: u32) -> StoredPasskey {
+        StoredPasskey {
+            user: user.clone(),
+            credential_id: id.into(),
+            public_key_cose: cose.to_vec(),
+            sign_count,
+            label: String::new(),
+        }
+    }
+
+    #[test]
+    fn registration_options_exclude_existing_keys_and_carry_the_relying_party() {
+        let store = Arc::new(MemStore::default());
+        store.put(passkey(&alice(), "old-key", &[9], 3));
+        let svc = service(store, Stub::default());
+        let options = svc.registration_options(&alice(), "Alice's laptop");
+        assert!(!options.challenge.is_empty());
+        assert_eq!(options.rp.id, "chisel.example");
+        assert_eq!(options.rp.name, "Chisel Docs");
+        assert_eq!(options.user.id, "alice");
+        assert_eq!(options.user.display_name, "Alice's laptop");
+        assert_eq!(options.exclude_credentials.len(), 1);
+        assert_eq!(options.exclude_credentials[0].id, "old-key");
+        assert_eq!(options.authenticator_selection.resident_key, "required");
+    }
+
+    #[test]
+    fn finish_registration_stores_the_verified_credential() {
+        let store = Arc::new(MemStore::default());
+        let svc = service(Arc::clone(&store), Stub::default());
+        let _ = svc.registration_options(&alice(), "Alice's laptop");
+        let result = svc
+            .finish_registration(&alice(), "client-data-b64", "attestation-b64")
+            .expect("a stubbed registration finishes");
+        assert_eq!(result.credential_id, "cred-1");
+        let stored = store.get("cred-1").expect("the credential is persisted");
+        assert_eq!(stored.user, alice());
+        assert_eq!(stored.public_key_cose, vec![1, 2, 3]);
+        assert_eq!(stored.sign_count, 0);
+    }
+
+    #[test]
+    fn finish_registration_needs_an_in_flight_challenge() {
+        let svc = service(Arc::new(MemStore::default()), Stub::default());
+        let err = svc.finish_registration(&alice(), "c", "a").unwrap_err();
+        assert!(
+            err.to_string().contains("no in-flight passkey challenge"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn finish_registration_maps_verifier_failures_to_kit_errors() {
+        let svc = service(
+            Arc::new(MemStore::default()),
+            Stub {
+                refuse_registration: true,
+                ..Stub::default()
+            },
+        );
+        let _ = svc.registration_options(&alice(), "Alice's laptop");
+        let err = svc.finish_registration(&alice(), "c", "a").unwrap_err();
+        assert!(
+            err.to_string().contains("stub refused the registration"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn authentication_options_allow_only_the_users_own_keys() {
+        let store = Arc::new(MemStore::default());
+        store.put(passkey(&alice(), "a-key", &[1], 0));
+        store.put(passkey(&bob(), "b-key", &[2], 0));
+        let svc = service(store, Stub::default());
+        let options = svc.authentication_options(&alice());
+        assert_eq!(options.allow_credentials.len(), 1);
+        assert_eq!(options.allow_credentials[0].id, "a-key");
+        assert_eq!(options.rp_id, "chisel.example");
+        assert!(!options.challenge.is_empty());
+    }
+
+    #[test]
+    fn finish_authentication_verifies_against_the_stored_key() {
+        let store = Arc::new(MemStore::default());
+        store.put(passkey(&alice(), "a-key", &[7, 7], 41));
+        let stub = Arc::new(Stub::default());
+        let svc = PasskeyService::with_verifier(
+            "chisel.example",
+            "Chisel Docs",
+            vec!["https://chisel.example".into()],
+            store,
+            Arc::clone(&stub) as Arc<dyn CeremonyVerifier>,
+        );
+        let _ = svc.authentication_options(&alice());
+        svc.finish_authentication(&alice(), "a-key", "cdj-b64", "auth-data-b64", "sig-b64")
+            .expect("a stubbed authentication finishes");
+        let seen = stub
+            .seen
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ceremony = seen.as_ref().expect("the verifier saw the ceremony");
+        assert_eq!(ceremony.public_key_cose, vec![7, 7]);
+        assert_eq!(ceremony.current_sign_count, 41);
+        assert_eq!(ceremony.rp_id, "chisel.example");
+        assert_eq!(ceremony.allowed_credential_ids, ["a-key"]);
+        assert_eq!(ceremony.credential_id_b64, "a-key");
+    }
+
+    #[test]
+    fn finish_authentication_refuses_unknown_and_foreign_credentials() {
+        let store = Arc::new(MemStore::default());
+        store.put(passkey(&bob(), "b-key", &[2], 0));
+        let svc = service(store, Stub::default());
+        let err = svc
+            .finish_authentication(&alice(), "nope", "c", "a", "s")
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("unknown passkey credential"),
+            "{err}"
+        );
+        let err = svc
+            .finish_authentication(&alice(), "b-key", "c", "a", "s")
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("credential belongs to another user"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn finish_authentication_needs_an_in_flight_challenge() {
+        let store = Arc::new(MemStore::default());
+        store.put(passkey(&alice(), "a-key", &[1], 0));
+        let svc = service(store, Stub::default());
+        let err = svc
+            .finish_authentication(&alice(), "a-key", "c", "a", "s")
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("no in-flight passkey challenge"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn finish_authentication_maps_verifier_failures_to_kit_errors() {
+        let store = Arc::new(MemStore::default());
+        store.put(passkey(&alice(), "a-key", &[1], 0));
+        let svc = service(
+            store,
+            Stub {
+                refuse_authentication: true,
+                ..Stub::default()
+            },
+        );
+        let _ = svc.authentication_options(&alice());
+        let err = svc
+            .finish_authentication(&alice(), "a-key", "c", "a", "s")
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("stub refused the authentication"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn both_constructors_report_the_relying_party_in_debug() {
+        let store = Arc::new(MemStore::default());
+        let injected = service(Arc::clone(&store), Stub::default());
+        assert!(format!("{injected:?}").contains("chisel.example"));
+        let kit = PasskeyService::new(
+            "kit.example",
+            "Chisel Docs",
+            vec!["https://kit.example".into()],
+            store,
+        );
+        assert!(format!("{kit:?}").contains("kit.example"));
     }
 }
