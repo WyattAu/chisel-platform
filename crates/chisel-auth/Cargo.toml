@@ -29,6 +29,13 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 
 [dev-dependencies]
+# Real-crypto ceremony fixtures mirror webauthn-kit's own vectors suite: an
+# ES256 keypair (ring), CTAP2 CBOR attestation objects (ciborium), and the
+# authData hash (sha2). Versions align with the kit's own graph so nothing
+# new is compiled.
+ciborium = "0.2"
+ring = "0.17"
+sha2 = "0.10"
 
 [lints]
 workspace = true

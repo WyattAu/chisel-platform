@@ -401,6 +401,7 @@ impl PasskeyService {
 mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
     use super::*;
+    use sha2::Digest;
     use webauthn_kit::attestation::{AttestationFormat, AttestationResult, TrustLevel};
 
     /// An in-memory credential store.
@@ -699,5 +700,231 @@ mod tests {
             store,
         );
         assert!(format!("{kit:?}").contains("kit.example"));
+    }
+
+    // ── real-crypto ceremonies through the KitVerifier ─────────────────────────
+    //
+    // The stub covers the service's challenge state machine and store
+    // interactions; these drive the production verifier over synthetic ES256
+    // ceremonies (the fixture builders mirror webauthn-kit's own vectors
+    // suite), so no crypto is mocked on the kit-facing path.
+
+    const RP_ID: &str = "localhost";
+    const ORIGIN: &str = "http://localhost:8080";
+
+    fn kit_service(store: Arc<MemStore>) -> PasskeyService {
+        PasskeyService::new(RP_ID, "Chisel Docs", vec![ORIGIN.to_string()], store)
+    }
+
+    /// A CTAP2 attestation object with `fmt = none` and the given authData.
+    fn build_attestation_object(auth_data: &[u8]) -> Vec<u8> {
+        let map = vec![
+            (
+                ciborium::Value::Text("fmt".into()),
+                ciborium::Value::Text("none".into()),
+            ),
+            (
+                ciborium::Value::Text("attStmt".into()),
+                ciborium::Value::Map(vec![]),
+            ),
+            (
+                ciborium::Value::Text("authData".into()),
+                ciborium::Value::Bytes(auth_data.to_vec()),
+            ),
+        ];
+        let mut buf = Vec::new();
+        ciborium::ser::into_writer(&ciborium::Value::Map(map), &mut buf).expect("CBOR encode");
+        buf
+    }
+
+    /// An EC2 COSE_Key (P-256, ES256) from raw coordinate bytes.
+    fn build_cose_ec2_key(x: &[u8], y: &[u8]) -> Vec<u8> {
+        let map = vec![
+            (
+                ciborium::Value::Integer(1.into()),
+                ciborium::Value::Integer(2.into()),
+            ),
+            (
+                ciborium::Value::Integer(3.into()),
+                ciborium::Value::Integer((-7).into()),
+            ),
+            (
+                ciborium::Value::Integer((-1).into()),
+                ciborium::Value::Integer(1.into()),
+            ),
+            (
+                ciborium::Value::Integer((-2).into()),
+                ciborium::Value::Bytes(x.to_vec()),
+            ),
+            (
+                ciborium::Value::Integer((-3).into()),
+                ciborium::Value::Bytes(y.to_vec()),
+            ),
+        ];
+        let mut buf = Vec::new();
+        ciborium::ser::into_writer(&ciborium::Value::Map(map), &mut buf).expect("CBOR encode");
+        buf
+    }
+
+    /// Authenticator data: rpId hash, flags, counter, and — with the AT
+    /// flag — attested credential data (AAGUID, id, COSE key).
+    fn build_auth_data(
+        rp_id: &str,
+        flags: u8,
+        sign_count: u32,
+        credential_id: &[u8],
+        cose_key: &[u8],
+    ) -> Vec<u8> {
+        let mut auth_data = sha2::Sha256::digest(rp_id.as_bytes()).to_vec();
+        auth_data.push(flags);
+        auth_data.extend_from_slice(&sign_count.to_be_bytes());
+        if flags & 0x40 != 0 {
+            auth_data.extend_from_slice(&[0u8; 16]); // AAGUID
+            auth_data.extend_from_slice(&(credential_id.len() as u16).to_be_bytes());
+            auth_data.extend_from_slice(credential_id);
+            auth_data.extend_from_slice(cose_key);
+        }
+        auth_data
+    }
+
+    /// A fresh ES256 keypair with its EC2 COSE public key.
+    fn es256_key() -> (ring::signature::EcdsaKeyPair, Vec<u8>) {
+        use ring::signature::{EcdsaKeyPair, KeyPair as _};
+        let rng = ring::rand::SystemRandom::new();
+        let pkcs8 =
+            EcdsaKeyPair::generate_pkcs8(&ring::signature::ECDSA_P256_SHA256_FIXED_SIGNING, &rng)
+                .expect("key generation");
+        let key_pair = EcdsaKeyPair::from_pkcs8(
+            &ring::signature::ECDSA_P256_SHA256_FIXED_SIGNING,
+            pkcs8.as_ref(),
+            &rng,
+        )
+        .expect("key parsing");
+        let pub_bytes = key_pair.public_key().as_ref();
+        let cose = build_cose_ec2_key(&pub_bytes[1..33], &pub_bytes[33..65]);
+        (key_pair, cose)
+    }
+
+    fn b64(bytes: &[u8]) -> String {
+        webauthn_kit::base64_encode_urlsafe(bytes)
+    }
+
+    /// Runs a real registration ceremony against the KitVerifier and returns
+    /// the verified result and the registered credential id.
+    fn register_real(
+        svc: &PasskeyService,
+        user: &UserId,
+        key_pair: &ring::signature::EcdsaKeyPair,
+        cose_key: &[u8],
+        credential_id: &[u8],
+        origin: &str,
+    ) -> crate::Result<webauthn_kit::credential::RegistrationResult> {
+        let options = svc.registration_options(user, "laptop");
+        let client_data = serde_json::json!({
+            "type": "webauthn.create",
+            "challenge": options.challenge,
+            "origin": origin,
+        });
+        let client_data_b64 = b64(&serde_json::to_vec(&client_data).expect("json"));
+        let auth_data = build_auth_data(RP_ID, 0x45, 0, credential_id, cose_key); // UP|UV|AT
+        let _ = key_pair; // registration with fmt=none carries no signature
+        svc.finish_registration(
+            user,
+            &client_data_b64,
+            &b64(&build_attestation_object(&auth_data)),
+        )
+    }
+
+    #[test]
+    fn kit_verifier_roundtrips_a_real_es256_ceremony() {
+        let store = Arc::new(MemStore::default());
+        let svc = kit_service(Arc::clone(&store));
+        let (key_pair, cose_key) = es256_key();
+        let credential_id = vec![0xDE, 0xAD, 0xBE, 0xEF];
+
+        // Registration: the ceremony verifies and the COSE key lands in the store.
+        let result = register_real(&svc, &alice(), &key_pair, &cose_key, &credential_id, ORIGIN)
+            .expect("a fmt=none ES256 registration verifies");
+        assert_eq!(result.attestation_format, "none");
+        assert!(result.user_verified);
+        let stored = store
+            .get(&result.credential_id)
+            .expect("credential persisted");
+        assert_eq!(stored.public_key_cose, cose_key);
+        assert_eq!(stored.user, alice());
+
+        // Authentication: sign authData || clientDataHash with the same key.
+        let options = svc.authentication_options(&alice());
+        let client_data = serde_json::json!({
+            "type": "webauthn.get",
+            "challenge": options.challenge,
+            "origin": ORIGIN,
+        });
+        let client_data_bytes = serde_json::to_vec(&client_data).expect("json");
+        let assertion_auth_data = build_auth_data(RP_ID, 0x01, 1, &[], &[]); // UP, counter 1
+        let mut signed = assertion_auth_data.clone();
+        signed.extend_from_slice(&sha2::Sha256::digest(&client_data_bytes));
+        let rng = ring::rand::SystemRandom::new();
+        let signature = key_pair.sign(&rng, &signed).expect("ES256 signing");
+
+        svc.finish_authentication(
+            &alice(),
+            &result.credential_id,
+            &b64(&client_data_bytes),
+            &b64(&assertion_auth_data),
+            &b64(signature.as_ref()),
+        )
+        .expect("a correctly signed assertion verifies");
+    }
+
+    #[test]
+    fn kit_verifier_rejects_a_registration_from_a_foreign_origin() {
+        let svc = kit_service(Arc::new(MemStore::default()));
+        let (key_pair, cose_key) = es256_key();
+        let err = register_real(
+            &svc,
+            &alice(),
+            &key_pair,
+            &cose_key,
+            &[1, 2, 3],
+            "https://evil.example",
+        )
+        .expect_err("a foreign origin must not verify");
+        assert!(err.to_string().contains("origin"), "{err}");
+    }
+
+    #[test]
+    fn kit_verifier_rejects_an_assertion_signed_by_another_key() {
+        let store = Arc::new(MemStore::default());
+        let svc = kit_service(Arc::clone(&store));
+        let (key_pair, cose_key) = es256_key();
+        let result = register_real(&svc, &alice(), &key_pair, &cose_key, &[4, 5, 6], ORIGIN)
+            .expect("registration verifies");
+
+        // A fresh keypair signs the assertion; the stored key must reject it.
+        let (other_key, _) = es256_key();
+        let options = svc.authentication_options(&alice());
+        let client_data = serde_json::json!({
+            "type": "webauthn.get",
+            "challenge": options.challenge,
+            "origin": ORIGIN,
+        });
+        let client_data_bytes = serde_json::to_vec(&client_data).expect("json");
+        let assertion_auth_data = build_auth_data(RP_ID, 0x01, 1, &[], &[]);
+        let mut signed = assertion_auth_data.clone();
+        signed.extend_from_slice(&sha2::Sha256::digest(&client_data_bytes));
+        let rng = ring::rand::SystemRandom::new();
+        let signature = other_key.sign(&rng, &signed).expect("ES256 signing");
+
+        let err = svc
+            .finish_authentication(
+                &alice(),
+                &result.credential_id,
+                &b64(&client_data_bytes),
+                &b64(&assertion_auth_data),
+                &b64(signature.as_ref()),
+            )
+            .expect_err("an assertion from the wrong key must not verify");
+        assert!(err.to_string().contains("kit error"), "{err}");
     }
 }
