@@ -1,7 +1,7 @@
 [package]
 name = "chisel-audit"
-description = "Tamper-evident document audit trail for Chisel: SHA-256-chained, queryable, extendable to a server-side continuation."
-version = "0.1.1"
+description = "Platform side of Chisel Docs: identity, assets, and the tamper-evident document audit trail: composed from the WyattAu kit estate"
+version = "0.1.2"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
