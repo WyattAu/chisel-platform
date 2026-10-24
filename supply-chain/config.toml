@@ -907,6 +907,10 @@ criteria = "safe-to-deploy"
 version = "0.4.1"
 criteria = "safe-to-deploy"
 
+[[exemptions.tokenkit]]
+version = "1.0.1"
+criteria = "safe-to-deploy"
+
 [[exemptions.tokio]]
 version = "1.53.3"
 criteria = "safe-to-deploy"
