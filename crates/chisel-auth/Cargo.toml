@@ -1,7 +1,10 @@
 [package]
 name = "chisel-auth"
 description = "Chisel platform authentication: JWT sessions with a closed role vocabulary, and the OIDC desktop-loopback seam over the kit estate."
-version.workspace = true
+# Literal, not workspace-inherited: tokenkit 0.4 to 1.0 is breaking for
+# this crate's public API (ChiselClaims carries tokenkit::claims), while
+# the sibling crates did not change. The next lockstep bump realigns it.
+version = "0.2.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "chisel-auth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chisel-kernel",
  "chrono",
@@ -2197,7 +2197,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -2280,9 +2280,9 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tokenkit"
-version = "0.4.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e812d02a90e6360c8e443091b3b196a2114cdd384dc52e5865c3e0e1fa23eb4"
+checksum = "4462a10af58c46787b34a586794522cd195e83051a72fc236e4b0973fe474dc2"
 dependencies = [
  "chrono",
  "jsonwebtoken 11.1.0",
