@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 use serde_json::Value;
-use tamper_audit::AuditLog;
+use tamper_audit::{AuditLog, AuditStore, FileStore, InMemoryStore};
 
 /// Audit failures, re-exposed with the document context callers actually have.
 #[derive(Debug, thiserror::Error)]
@@ -140,17 +140,34 @@ impl AuditEvent {
 /// Cheap to clone — the underlying log is shared behind an `Arc`; every handle
 /// sees the same chain, which is the point.
 #[derive(Clone)]
-pub struct DocumentTrail {
-    inner: Arc<AuditLog>,
+pub struct DocumentTrail<S: AuditStore = InMemoryStore> {
+    inner: Arc<AuditLog<S>>,
 }
 
-impl Default for DocumentTrail {
-    fn default() -> Self {
-        Self::in_memory()
+/// The default durable shape: a trail over the JSONL [`FileStore`].
+pub type DurableDocumentTrail = DocumentTrail<tamper_audit::FileStore>;
+
+impl DurableDocumentTrail {
+    /// A trail kept in a JSONL file under `dir`: the desktop's durable
+    /// trail. The file survives restarts, and the chain — every entry
+    /// hashing the one before it — keeps verifying across sessions: open
+    /// the same directory again and the log continues from where it left
+    /// off. A corrupt file is refused at open, naming the offending line.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the store's open error.
+    pub async fn on_disk(dir: impl Into<std::path::PathBuf>) -> tamper_audit::Result<Self> {
+        let mut dir: std::path::PathBuf = dir.into();
+        dir.push("trail.jsonl");
+        let inner = AuditLog::with_store(FileStore::new(dir)).await?;
+        Ok(Self {
+            inner: Arc::new(inner),
+        })
     }
 }
 
-impl DocumentTrail {
+impl DocumentTrail<InMemoryStore> {
     /// A trail kept in memory (the desktop path; the service continuation
     /// takes over on publish).
     #[must_use]
@@ -159,7 +176,24 @@ impl DocumentTrail {
             inner: Arc::new(AuditLog::new()),
         }
     }
+}
 
+impl Default for DocumentTrail<InMemoryStore> {
+    fn default() -> Self {
+        Self::in_memory()
+    }
+}
+
+impl<S: AuditStore> DocumentTrail<S> {
+    /// A trail kept in a JSONL file under `dir`: the desktop's durable
+    /// trail. The file survives restarts, and the chain — every entry
+    /// hashing the one before it — keeps verifying across sessions: open
+    /// the same directory again and the log continues from where it left
+    /// off. A corrupt file is refused at open, naming the offending line.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the store's open error.
     /// Append one mutation to the chain. The payload is the event serialized
     /// as-is, so the chain verifies bytes the UI could reconstruct.
     ///
@@ -339,5 +373,64 @@ mod surface_tests {
         );
         assert!(trail.verify().await?.is_valid());
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod on_disk_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn the_durable_trail_survives_a_reopen_and_the_chain_verifies() {
+        let dir = std::env::temp_dir().join(format!(
+            "chisel-audit-on-disk-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // One session: open, edit, export.
+        let session = DurableDocumentTrail::on_disk(&dir)
+            .await
+            .expect("the trail opens");
+        session
+            .record(AuditEvent::opened("local", &DocumentRef::new("report.pdf")))
+            .await
+            .expect("opened records");
+        session
+            .record(AuditEvent::edited(
+                "local",
+                &DocumentRef::new("report.pdf"),
+                "page 2",
+            ))
+            .await
+            .expect("edited records");
+        session
+            .record(AuditEvent::exported(
+                "local",
+                &DocumentRef::new("report.pdf"),
+                "pdf",
+            ))
+            .await
+            .expect("exported records");
+        drop(session);
+
+        // A brand-new session over the same directory: the chain continues
+        // from where the last one left off, and still verifies end to end.
+        let reopened = DurableDocumentTrail::on_disk(&dir)
+            .await
+            .expect("the trail reopens");
+        let verification = reopened.verify().await.expect("verify runs");
+        assert!(verification.is_valid(), "{verification:?}");
+        assert!(
+            verification.valid_entries >= 4,
+            "anchor + three events: {verification:?}"
+        );
+
+        // The history is queryable: the actor's entries are all there.
+        let by_actor = reopened.by_actor("local").await.expect("query");
+        assert_eq!(by_actor.len(), 3, "opened, edited, exported: {by_actor:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

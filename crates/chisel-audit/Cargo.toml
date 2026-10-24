@@ -1,7 +1,7 @@
 [package]
 name = "chisel-audit"
 description = "Platform side of Chisel Docs: identity, assets, and the tamper-evident document audit trail: composed from the WyattAu kit estate"
-version = "0.1.2"
+version = "0.2.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

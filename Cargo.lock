@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "chisel-audit"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2176,9 +2176,9 @@ dependencies = [
 
 [[package]]
 name = "tamper-audit"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2d0598746514e1bece1b57f7851e0093b01c5d850b95419343cdc1cd283a629"
+checksum = "45bbcd1afd827171f7792ded9e4d2378acfb9490fa6e9c42ba683c9f48676f6b"
 dependencies = [
  "async-trait",
  "chrono",
