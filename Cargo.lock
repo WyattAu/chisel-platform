@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "chisel-auth"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chisel-kernel",
  "chrono",
@@ -2280,9 +2280,9 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tokenkit"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4462a10af58c46787b34a586794522cd195e83051a72fc236e4b0973fe474dc2"
+checksum = "7089fd92f125c5e8a1a5daacfa4ec891cede1194c53d9a9b954332157f01f181"
 dependencies = [
  "chrono",
  "jsonwebtoken 11.1.0",
