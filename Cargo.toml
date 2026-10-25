@@ -4,7 +4,7 @@ members = ["crates/*"]
 exclude = ["vendor"]
 
 [workspace.package]
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/WyattAu/chisel-platform"
@@ -18,7 +18,7 @@ chisel-audit = { path = "crates/chisel-audit", version = "0.1.0" }
 chisel-kernel = { path = "crates/chisel-kernel", version = "0.1.0" }
 script-gate-kit = { path = "crates/script-gate-kit", version = "0.1.0" }
 # dogfooded kit estate
-cas-kit = "0.2"
+cas-kit = "1"
 oauth-toolkit = "0.4"
 tokenkit = "=1.0.1"
 tamper-audit = "0.2.3"
