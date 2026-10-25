@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "chisel-auth"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chisel-kernel",
  "chrono",
@@ -2651,9 +2651,9 @@ dependencies = [
 
 [[package]]
 name = "webauthn-kit"
-version = "0.4.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e933dbfca7a1065e00d236cbec8bf619e162fb47a35323bf4d951d4d82cb3059"
+checksum = "f04edca930998ad58694c5e75c5142126ebd984fcec6f59195673a93ab679c06"
 dependencies = [
  "base64 0.22.1",
  "ciborium",
