@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "chisel-assets"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "cas-kit",
  "thiserror",
@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "chisel-kernel"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "config-kit",
  "serde",
@@ -388,9 +388,9 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
 name = "config-kit"
-version = "0.1.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75ea96e6d3e7083ddeed81d93bfe57e3d66b85f94f62c33f8d91e7546c9fc1bd"
+checksum = "fcfa8c09f928294b59a4341f5e4ab932dd31769140929ea16d3288f771c423e2"
 dependencies = [
  "serde",
  "serde_ignored",
@@ -1896,7 +1896,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "script-gate-kit"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "thiserror",
 ]
