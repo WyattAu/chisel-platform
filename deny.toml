@@ -1,0 +1,56 @@
+# WyattAu dependency governance — cargo-deny configuration.
+# Copy to the repo root. Policies: see engineering-standards README §7.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # Marvin (RSA private-key timing side channel, no fixed `rsa` release). tokenkit uses
+    # `rsa` through jsonwebtoken for token signing verification only; the private-key
+    # operations never run inside this crate's threat surface.
+    { id = "RUSTSEC-2023-0071", reason = "rsa is used for verification only via tokenkit/jsonwebtoken" },
+    # zstd 0.13 timing/decompression advisories (fixes are 0.14.3/8.2.0-only; cas-kit 1.0.0
+    # still pins zstd ^0.13, so no fixed version exists through the dependency). The exposure
+    # is local-only: CAS blobs are written by the app into a user-private directory, decode
+    # is bounded by cas-kit's MAX_DECOMPRESSED_SIZE, and the decode path is not fed from the
+    # network. Tracks the cas-kit zstd 0.14 bump.
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint timing variability; reached through tokenkit/jsonwebtoken for token VERIFICATION only — no private-key operations run in the desktop composition" },
+    { id = "RUSTSEC-2026-0391", reason = "zstd timing/decompression issues; cas-kit 1.0.0 still pins ^0.13 — decode path is local-only and size-bounded" },
+    { id = "RUSTSEC-2026-0398", reason = "zstd-safe non-constant-time ops; same cas-kit ^0.13 pin — local-only decode path, size-bounded" },
+    { id = "RUSTSEC-2026-0403", reason = "zstd-safe mask generation; same cas-kit ^0.13 pin — local-only decode path, size-bounded" },
+]
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "CDLA-Permissive-2.0",
+  # BSL-1.0 — permissive Boost license; ships via redis >=1.0's bundled xxhash
+  # (precedent: webhookkit).
+  "BSL-1.0",
+  # MPL-2.0 — weak file-level copyleft, linkable; cssparser/html5ever via
+  # ammonia (precedent: docs-pipeline).
+  "MPL-2.0",
+  # CC0-1.0 — public-domain dedication; notify dependency chain
+  # (precedent: config-kit).
+  "CC0-1.0",
+  # 0BSD — public-domain-equative, no attribution requirement beyond the
+  # notice; quoted_printable via lettre (precedent: mailkit).
+  "0BSD",
+]
+confidence-threshold = 0.93
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
