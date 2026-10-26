@@ -103,6 +103,10 @@ criteria = "safe-to-deploy"
 version = "0.2.1"
 criteria = "safe-to-deploy"
 
+[[exemptions.cas-kit]]
+version = "1.0.0"
+criteria = "safe-to-deploy"
+
 [[exemptions.cc]]
 version = "1.8.0"
 criteria = "safe-to-deploy"
@@ -157,6 +161,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.config-kit]]
 version = "0.1.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.config-kit]]
+version = "1.0.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.const-oid]]
@@ -1065,6 +1073,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.webauthn-kit]]
 version = "0.4.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.webauthn-kit]]
+version = "1.0.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.webpki-roots]]
