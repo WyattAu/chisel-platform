@@ -383,7 +383,7 @@ impl PasskeyService {
             allowed_credential_ids: vec![credential_id.to_owned()],
             rp_id: self.config.rp_id.clone(),
             rp_origins: self.config.rp_origins.clone(),
-            policy: self.verifier_policy(),
+            policy: Self::verifier_policy(),
         };
         let _result = self
             .verifier
@@ -392,7 +392,7 @@ impl PasskeyService {
         Ok(())
     }
 
-    fn verifier_policy(&self) -> CredentialPolicy {
+    fn verifier_policy() -> CredentialPolicy {
         CredentialPolicy::default()
     }
 }

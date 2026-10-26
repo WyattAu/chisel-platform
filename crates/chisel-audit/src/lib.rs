@@ -378,6 +378,7 @@ mod surface_tests {
 
 #[cfg(test)]
 mod on_disk_tests {
+    #![allow(clippy::expect_used, clippy::unwrap_used)]
     use super::*;
 
     #[tokio::test]
