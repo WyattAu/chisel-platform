@@ -1,0 +1,6 @@
+# chisel-platform
+
+> Platform side of Chisel Docs: chisel-audit (document vocabulary over tamper-audit's SHA-256 chain) and the durable desktop trail. Workspace of Rust crates.
+
+- [README](README.md): behavior, usage, scope
+- [AGENTS](AGENTS.md): contract + truth table (one normative home per concern)
